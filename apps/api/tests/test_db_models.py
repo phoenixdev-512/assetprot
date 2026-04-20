@@ -52,6 +52,9 @@ async def test_create_asset_fingerprint(db_session):
     await db_session.commit()
     await db_session.refresh(fp)
     assert fp.asset_id == asset.id
+    assert fp.phash == "a" * 64
+    assert fp.whash == "b" * 64
+    assert fp.fingerprinted_at is None
 
 @pytest.mark.asyncio
 async def test_create_violation(db_session):
@@ -72,3 +75,35 @@ async def test_create_violation(db_session):
     await db_session.commit()
     await db_session.refresh(v)
     assert v.status == "suspected"
+    assert v.confidence == 0.95
+    assert v.transformation_types == []
+    assert v.rights_territory_violation is False
+    assert v.detected_at is not None
+
+@pytest.mark.asyncio
+async def test_create_dmca_notice(db_session):
+    org = Organization(name="Org3", plan="free")
+    db_session.add(org)
+    await db_session.flush()
+    asset = Asset(org_id=org.id, title="Clip", content_type="video", territories=[])
+    db_session.add(asset)
+    await db_session.flush()
+    v = Violation(
+        asset_id=asset.id,
+        discovered_url="https://pirate.example/clip",
+        platform="twitter",
+        confidence=0.80,
+        infringement_type="partial_clip",
+    )
+    db_session.add(v)
+    await db_session.flush()
+    notice = DMCANotice(
+        violation_id=v.id,
+        notice_text="DMCA takedown notice for unauthorized use.",
+    )
+    db_session.add(notice)
+    await db_session.commit()
+    await db_session.refresh(notice)
+    assert notice.id is not None
+    assert notice.status == "draft"
+    assert notice.sent_at is None
