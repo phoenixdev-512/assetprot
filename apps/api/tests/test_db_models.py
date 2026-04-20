@@ -6,6 +6,8 @@ from models.asset import Asset
 from models.asset_fingerprint import AssetFingerprint
 from models.violation import Violation
 from models.dmca_notice import DMCANotice
+from models.task import Task
+from models.scan_run import ScanRun
 
 @pytest.mark.asyncio
 async def test_db_session_connects(db_session):
@@ -107,3 +109,34 @@ async def test_create_dmca_notice(db_session):
     assert notice.id is not None
     assert notice.status == "draft"
     assert notice.sent_at is None
+
+
+@pytest.mark.asyncio
+async def test_create_task(db_session):
+    import uuid
+    t = Task(
+        id=str(uuid.uuid4()),
+        type="fingerprint",
+        status="queued",
+    )
+    db_session.add(t)
+    await db_session.commit()
+    await db_session.refresh(t)
+    assert t.status == "queued"
+    assert t.result is None
+
+@pytest.mark.asyncio
+async def test_create_scan_run(db_session):
+    org = Organization(name="Org4", plan="free")
+    db_session.add(org)
+    await db_session.flush()
+    asset = Asset(org_id=org.id, title="Event", content_type="video", territories=[])
+    db_session.add(asset)
+    await db_session.flush()
+    run = ScanRun(asset_id=asset.id, status="running")
+    db_session.add(run)
+    await db_session.commit()
+    await db_session.refresh(run)
+    assert run.id is not None
+    assert run.violations_found == 0
+    assert run.errors is None

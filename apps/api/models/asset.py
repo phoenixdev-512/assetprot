@@ -29,5 +29,4 @@ class Asset(Base):
     fingerprint: Mapped["AssetFingerprint | None"] = relationship("AssetFingerprint", back_populates="asset", uselist=False)
     violations: Mapped[list["Violation"]] = relationship("Violation", back_populates="asset")
 
-    # ScanRun relationship deferred until Task 6:
-    #   scan_runs: Mapped[list["ScanRun"]] = relationship("ScanRun", back_populates="asset")
+    scan_runs: Mapped[list["ScanRun"]] = relationship("ScanRun", back_populates="asset")
