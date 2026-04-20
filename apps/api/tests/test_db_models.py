@@ -1,15 +1,14 @@
 import pytest
 from sqlalchemy import text
 
+from models.organization import Organization
+from models.asset import Asset
+
 @pytest.mark.asyncio
 async def test_db_session_connects(db_session):
     result = await db_session.execute(text("SELECT 1"))
     row = result.scalar()
     assert row == 1
-
-from models.organization import Organization
-from models.asset import Asset
-import uuid
 
 @pytest.mark.asyncio
 async def test_create_organization(db_session):
