@@ -22,3 +22,20 @@ async def db_session():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
         await engine.dispose()
+
+
+from httpx import AsyncClient, ASGITransport
+
+
+@pytest_asyncio.fixture
+async def client(db_session):
+    from main import app
+    from db.session import get_async_session
+
+    async def override_get_session():
+        yield db_session
+
+    app.dependency_overrides[get_async_session] = override_get_session
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+    app.dependency_overrides.clear()
