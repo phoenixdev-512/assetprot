@@ -15,24 +15,35 @@
 
 ## Task 2: Auth / JWT Layer ✅ COMPLETE (2026-04-21)
 
-### Design ✅ (2026-04-21)
-- Spec: `docs/superpowers/specs/2026-04-21-auth-jwt-design.md` (commit `b20429b`)
-- Approach: JSON body tokens (access 15 min + refresh 7 days), no cookies in MVP
-- `HTTPBearer` scheme (not OAuth2PasswordBearer — login accepts JSON not form data)
-
-### Implementation ✅ (2026-04-21)
-Files created:
+- Spec: `docs/superpowers/specs/2026-04-21-auth-jwt-design.md`
+- JSON body tokens (access 15 min + refresh 7 days); HTTPBearer scheme
 - `apps/api/schemas/auth.py` — RegisterRequest, LoginRequest, RefreshRequest, TokenResponse, UserResponse
-- `apps/api/core/security.py` — hash_password, verify_password, create_access_token, create_refresh_token, decode_token (HS256, bcrypt)
+- `apps/api/core/security.py` — hash_password, verify_password, create_access_token, create_refresh_token, decode_token
 - `apps/api/services/auth_service.py` — AuthService (register, login, refresh, get_me)
 - `apps/api/dependencies/auth.py` — get_current_user + get_auth_service Depends
-- `apps/api/routers/auth.py` — 4 thin route handlers + standard envelope
-- `apps/api/tests/test_security.py` — 6 unit tests (security utilities)
-- `apps/api/tests/test_auth.py` — 9 integration tests (register, login, refresh, /me)
-- Updated `apps/api/main.py` — include_router(auth_router, prefix="/auth") + HTTPException envelope handler
-- Updated `apps/api/requirements.txt` — passlib[bcrypt]==1.7.4, python-jose[cryptography]==3.3.0, bcrypt==4.0.1
-- 26/26 tests passing (11 original + 6 security unit + 9 auth integration)
-- Commits: `afc01ba`, `4c62dad`, `2f1dcac`, `e5b99b6`, `29b5af5`
+- `apps/api/routers/auth.py` — 4 route handlers at /auth/{register,login,refresh,me}
+- `apps/api/tests/test_security.py` — 6 unit tests; `apps/api/tests/test_auth.py` — 9 integration tests
+- Commits: `afc01ba`→`29b5af5`
+
+---
+
+## Task 3: HTTP Layer (schemas, repos, middleware, routers) ✅ COMPLETE (2026-04-21)
+
+- `apps/api/config/redis_keys.py`, `rate_limits.py` — Redis key helpers + rate limit constants
+- `apps/api/schemas/base.py` — APIResponse[T], PaginatedResponse[T]
+- `apps/api/schemas/asset.py`, `violation.py`, `scan_run.py` — ORM-serializing response schemas
+- `apps/api/db/repositories/` — asset_repo, violation_repo, scan_run_repo, user_repo
+- `apps/api/core/dependencies.py` — get_db, get_current_org_id (wraps existing get_current_user)
+- `apps/api/middleware/rate_limit.py` — Redis token-bucket RateLimitMiddleware
+- `apps/api/services/` — asset_service, violation_service, scan_run_service
+- `apps/api/routers/assets.py` — GET /api/v1/assets, /api/v1/assets/{id}
+- `apps/api/routers/violations.py` — GET /api/v1/violations
+- `apps/api/routers/scan_runs.py` — GET /api/v1/scan-runs
+- `apps/api/routers/tasks.py` — GET /api/v1/tasks/{task_id}
+- Updated `apps/api/main.py` — all routers mounted, rate limit middleware, extended /health
+- Tests: test_schemas.py (6), test_rate_limit.py (2), test_assets_router.py (3)
+- **38/38 tests passing, 90% coverage**
+- Commits: `204fe77`→`1e88688`
 
 ---
 
@@ -44,15 +55,34 @@ Files created:
 
 ---
 
+## API Routes Summary
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | /auth/register | No | Create org + user, return token pair |
+| POST | /auth/login | No | Verify credentials, return token pair |
+| POST | /auth/refresh | Refresh token | Return new access token |
+| GET | /auth/me | Bearer | Current user profile |
+| GET | /api/v1/assets | Bearer | List org assets (paginated) |
+| GET | /api/v1/assets/{id} | Bearer | Get single asset |
+| GET | /api/v1/violations | Bearer | List org violations (paginated) |
+| GET | /api/v1/scan-runs | Bearer | List org scan runs (paginated) |
+| GET | /api/v1/tasks/{id} | Bearer | Get task status |
+| GET | /health | No | DB + Redis health check |
+
+---
+
 ## Resumption Prompt (Next Session)
 
-> Continue GUARDIAN Phase 2 Backend — Task 3: (TBD — define next task).
+> Continue GUARDIAN — Phase 3: ML Pipeline / Fingerprinting.
 >
-> Read progress.md before starting. All auth endpoints are live at /auth/register, /auth/login, /auth/refresh, /auth/me.
+> Read progress.md before starting. Phase 2 backend is fully complete: auth, resource routers,
+> rate limiting, 38/38 tests at 90% coverage.
 >
 > Key context:
-> - Stack: FastAPI + SQLAlchemy async + PostgreSQL
-> - Auth layer complete: HTTPBearer, JSON tokens, standard envelope
-> - `get_current_user` dependency in `dependencies/auth.py` protects routes
-> - PostgreSQL on localhost:5432; prefix pytest with `DATABASE_URL="postgresql+asyncpg://guardian:changeme_dev@localhost:5432/guardian"`
-> - 26/26 tests currently passing — do not regress
+> - Stack: FastAPI + SQLAlchemy async + PostgreSQL + Celery/Redis
+> - Auth: HTTPBearer at /auth/*; protected routes via get_current_user in dependencies/auth.py
+> - Org-scoped DI: get_current_org_id in core/dependencies.py
+> - PostgreSQL on localhost:5432; prefix pytest with DATABASE_URL="postgresql+asyncpg://guardian:changeme_dev@localhost:5432/guardian"
+> - 38/38 tests currently passing — do not regress
+> - Next: CLIP embeddings ingestion, perceptual hashing, Qdrant storage, Celery fingerprint task
