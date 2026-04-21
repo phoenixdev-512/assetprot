@@ -78,3 +78,34 @@ def test_compute_clip_embedding_calls_processor_with_image():
     compute_clip_embedding(img, mock_model, mock_processor)
 
     mock_processor.assert_called_once_with(images=img, return_tensors="pt")
+
+
+# ── audio fingerprint ─────────────────────────────────────────────────────────
+
+def test_compute_chromaprint_returns_bytes_on_success():
+    from unittest.mock import patch, MagicMock
+    from ml.fingerprinting.audio_fingerprint import compute_chromaprint
+
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = '{"fingerprint": "AQAAC0kkZUqYREkS", "duration": 30.5}'
+
+    with patch("ml.fingerprinting.audio_fingerprint.subprocess.run", return_value=mock_result):
+        result = compute_chromaprint("/tmp/test.mp3")
+
+    assert isinstance(result, bytes)
+    assert len(result) > 0
+
+
+def test_compute_chromaprint_returns_none_on_failure():
+    from unittest.mock import patch, MagicMock
+    from ml.fingerprinting.audio_fingerprint import compute_chromaprint
+
+    mock_result = MagicMock()
+    mock_result.returncode = 1
+    mock_result.stdout = ""
+
+    with patch("ml.fingerprinting.audio_fingerprint.subprocess.run", return_value=mock_result):
+        result = compute_chromaprint("/tmp/nonexistent.mp3")
+
+    assert result is None
