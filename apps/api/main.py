@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+import os
+
 from core.config import settings
 from db.session import AsyncSessionLocal
 from middleware.rate_limit import RateLimitMiddleware
@@ -18,6 +20,10 @@ from routers.violations import router as violations_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    os.makedirs(settings.upload_dir, exist_ok=True)
+    if settings.app_env != "test":
+        from ml.model_loader import load_models
+        load_models(app)
     yield
 
 
