@@ -13,29 +13,26 @@
 
 ---
 
-## Task 2: Auth / JWT Layer 🔄 IN PROGRESS
+## Task 2: Auth / JWT Layer ✅ COMPLETE (2026-04-21)
 
 ### Design ✅ (2026-04-21)
 - Spec: `docs/superpowers/specs/2026-04-21-auth-jwt-design.md` (commit `b20429b`)
 - Approach: JSON body tokens (access 15 min + refresh 7 days), no cookies in MVP
 - `HTTPBearer` scheme (not OAuth2PasswordBearer — login accepts JSON not form data)
 
-### Implementation ⏳ PENDING
-Files to create:
+### Implementation ✅ (2026-04-21)
+Files created:
 - `apps/api/schemas/auth.py` — RegisterRequest, LoginRequest, RefreshRequest, TokenResponse, UserResponse
-- `apps/api/core/security.py` — hash_password, verify_password, create_access_token, create_refresh_token, decode_token
+- `apps/api/core/security.py` — hash_password, verify_password, create_access_token, create_refresh_token, decode_token (HS256, bcrypt)
 - `apps/api/services/auth_service.py` — AuthService (register, login, refresh, get_me)
-- `apps/api/dependencies/auth.py` — get_current_user Depends()
-- `apps/api/routers/auth.py` — 4 thin route handlers
-- Update `apps/api/main.py` — include_router(auth_router, prefix="/auth")
-- Update `apps/api/requirements.txt` — add passlib[bcrypt], python-jose[cryptography]
-- `apps/api/tests/test_auth.py` — 9 tests (register, login, refresh, me)
-
-Token payload: `{ "sub": "<user_id>", "org_id": "<org_id>", "type": "access"|"refresh", "exp": ... }`
-Signing: HS256, key: `settings.jwt_secret_key` (already in Settings)
-
-### Resumption Prompt
-See bottom of file.
+- `apps/api/dependencies/auth.py` — get_current_user + get_auth_service Depends
+- `apps/api/routers/auth.py` — 4 thin route handlers + standard envelope
+- `apps/api/tests/test_security.py` — 6 unit tests (security utilities)
+- `apps/api/tests/test_auth.py` — 9 integration tests (register, login, refresh, /me)
+- Updated `apps/api/main.py` — include_router(auth_router, prefix="/auth") + HTTPException envelope handler
+- Updated `apps/api/requirements.txt` — passlib[bcrypt]==1.7.4, python-jose[cryptography]==3.3.0, bcrypt==4.0.1
+- 26/26 tests passing (11 original + 6 security unit + 9 auth integration)
+- Commits: `afc01ba`, `4c62dad`, `2f1dcac`, `e5b99b6`, `29b5af5`
 
 ---
 
@@ -49,19 +46,13 @@ See bottom of file.
 
 ## Resumption Prompt (Next Session)
 
-> Continue GUARDIAN Phase 2 Backend — Task 2: Auth/JWT Layer implementation.
+> Continue GUARDIAN Phase 2 Backend — Task 3: (TBD — define next task).
 >
-> Design is approved and spec is at `docs/superpowers/specs/2026-04-21-auth-jwt-design.md`. Read progress.md and the spec before starting.
->
-> Start by invoking the `superpowers:writing-plans` skill to create a step-by-step implementation plan, then implement using TDD (`superpowers:test-driven-development`).
+> Read progress.md before starting. All auth endpoints are live at /auth/register, /auth/login, /auth/refresh, /auth/me.
 >
 > Key context:
 > - Stack: FastAPI + SQLAlchemy async + PostgreSQL
-> - `settings.jwt_secret_key` already exists in `core/config.py`
-> - `get_async_session()` is the DB dependency in `db/session.py`
-> - Router → Service → Dependency pattern (see CLAUDE.md)
-> - Tokens returned as JSON body (not cookies)
-> - Use `HTTPBearer` not `OAuth2PasswordBearer`
-> - No routers/, services/, schemas/, dependencies/ directories exist yet — create them
-> - PostgreSQL is on localhost:5432; prefix alembic/pytest commands with `DATABASE_URL="postgresql+asyncpg://guardian:changeme_dev@localhost:5432/guardian"`
-> - 11/11 tests currently passing — do not regress
+> - Auth layer complete: HTTPBearer, JSON tokens, standard envelope
+> - `get_current_user` dependency in `dependencies/auth.py` protects routes
+> - PostgreSQL on localhost:5432; prefix pytest with `DATABASE_URL="postgresql+asyncpg://guardian:changeme_dev@localhost:5432/guardian"`
+> - 26/26 tests currently passing — do not regress
