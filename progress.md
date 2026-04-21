@@ -1,8 +1,10 @@
-# GUARDIAN Phase 2 Backend — Progress
+# GUARDIAN Progress
 
 ---
 
-## Task 1: User ORM Model + Migration ✅ COMPLETE (2026-04-21)
+## Phase 2 Backend
+
+### Task 1: User ORM Model + Migration ✅ COMPLETE (2026-04-21)
 
 - `apps/api/models/user.py` — User ORM model (id, org_id FK, email, hashed_password, is_active, created_at)
 - `apps/api/models/__init__.py` — User registered in __all__
@@ -13,7 +15,7 @@
 
 ---
 
-## Task 2: Auth / JWT Layer ✅ COMPLETE (2026-04-21)
+### Task 2: Auth / JWT Layer ✅ COMPLETE (2026-04-21)
 
 - Spec: `docs/superpowers/specs/2026-04-21-auth-jwt-design.md`
 - JSON body tokens (access 15 min + refresh 7 days); HTTPBearer scheme
@@ -27,7 +29,7 @@
 
 ---
 
-## Task 3: HTTP Layer (schemas, repos, middleware, routers) ✅ COMPLETE (2026-04-21)
+### Task 3: HTTP Layer (schemas, repos, middleware, routers) ✅ COMPLETE (2026-04-21)
 
 - `apps/api/config/redis_keys.py`, `rate_limits.py` — Redis key helpers + rate limit constants
 - `apps/api/schemas/base.py` — APIResponse[T], PaginatedResponse[T]
@@ -47,6 +49,53 @@
 
 ---
 
+## Phase 3: ML Fingerprinting Pipeline ✅ COMPLETE (2026-04-21)
+
+### Files Created
+
+| File | Responsibility |
+|---|---|
+| `apps/api/config/thresholds.py` | PHASH_MATCH_BITS=10, CLIP_SIMILARITY_MIN=0.85, AUDIO_FP_MATCH_SCORE=0.80, WATERMARK_CONFIDENCE_MIN=0.90 |
+| `apps/api/ml/__init__.py` | Package init |
+| `apps/api/ml/fingerprinting/__init__.py` | Package init |
+| `apps/api/ml/fingerprinting/perceptual_hash.py` | compute_phash, compute_whash (imagehash) |
+| `apps/api/ml/fingerprinting/clip_embed.py` | compute_clip_embedding — injected model/processor |
+| `apps/api/ml/fingerprinting/audio_fingerprint.py` | compute_chromaprint — fpcalc subprocess |
+| `apps/api/ml/fingerprinting/watermark.py` | embed_watermark, decode_watermark (imwatermark DwtDctSvd) |
+| `apps/api/ml/qdrant_store.py` | init_collection, upsert_embedding, search_similar |
+| `apps/api/ml/model_loader.py` | load_models(app) — CLIP into app.state at startup, skip in APP_ENV=test |
+| `apps/api/blockchain/__init__.py` | Package init |
+| `apps/api/blockchain/protocol.py` | Attestation Protocol ABC |
+| `apps/api/blockchain/null_attestation.py` | NullAttestation — no-op Phase 2 stub |
+| `apps/api/services/fingerprint_service.py` | FingerprintService — orchestrates 4 stages, writes DB + Qdrant |
+| `apps/api/tasks/__init__.py` | Package init |
+| `apps/api/tasks/fingerprint_task.py` | fingerprint_task Celery task wrapping FingerprintService |
+
+### Files Modified
+
+| File | Change |
+|---|---|
+| `apps/api/requirements.txt` | Added imagehash, Pillow, transformers, torch, invisible-watermark, opencv-python-headless, python-multipart, pytest-env |
+| `apps/api/core/config.py` | Added upload_dir, qdrant_collection settings |
+| `apps/api/main.py` | Lifespan: creates upload_dir, loads models if not test env |
+| `apps/api/routers/assets.py` | Added POST /api/v1/assets ingest endpoint |
+| `apps/api/schemas/asset.py` | Added AssetIngestResponse |
+| `apps/api/pytest.ini` | Added APP_ENV=test env var |
+| `apps/api/tests/conftest.py` | Added `import models` to register all ORM models before create_all |
+
+### Tests Added
+
+- `apps/api/tests/test_fingerprinting.py` — 10 unit tests (pHash, wHash, CLIP, chromaprint, watermark)
+- `apps/api/tests/test_fingerprint_service.py` — 3 integration tests (image, audio, error handling)
+- `apps/api/tests/test_assets_ingest.py` — 3 HTTP integration tests (POST /api/v1/assets)
+
+**54/54 tests passing, 87% coverage**
+
+### Key bug fixed
+`conftest.py` now imports `models` at module level so all ORM models are registered with `Base.metadata` before `create_all` runs on the first test, preventing "relation does not exist" failures when the ingest test file is collected first alphabetically.
+
+---
+
 ## DB State
 - PostgreSQL running locally on port 5432
 - `DATABASE_URL=postgresql+asyncpg://guardian:changeme_dev@localhost:5432/guardian`
@@ -63,6 +112,7 @@
 | POST | /auth/login | No | Verify credentials, return token pair |
 | POST | /auth/refresh | Refresh token | Return new access token |
 | GET | /auth/me | Bearer | Current user profile |
+| POST | /api/v1/assets | Bearer | Upload asset, dispatch fingerprint task |
 | GET | /api/v1/assets | Bearer | List org assets (paginated) |
 | GET | /api/v1/assets/{id} | Bearer | Get single asset |
 | GET | /api/v1/violations | Bearer | List org violations (paginated) |
@@ -74,15 +124,17 @@
 
 ## Resumption Prompt (Next Session)
 
-> Continue GUARDIAN — Phase 3: ML Pipeline / Fingerprinting.
+> Continue GUARDIAN — Phase 4: Frontend Slice 1.
 >
-> Read progress.md before starting. Phase 2 backend is fully complete: auth, resource routers,
-> rate limiting, 38/38 tests at 90% coverage.
+> Read progress.md before starting. Phase 3 ML fingerprinting pipeline is fully complete:
+> 4-stage pipeline (pHash, CLIP, Chromaprint, watermark), Celery task, POST /api/v1/assets ingest,
+> 54/54 tests at 87% coverage.
 >
 > Key context:
-> - Stack: FastAPI + SQLAlchemy async + PostgreSQL + Celery/Redis
+> - Stack: FastAPI + SQLAlchemy async + PostgreSQL + Celery/Redis + Qdrant
 > - Auth: HTTPBearer at /auth/*; protected routes via get_current_user in dependencies/auth.py
-> - Org-scoped DI: get_current_org_id in core/dependencies.py
+> - POST /api/v1/assets: multipart upload → saves to upload_dir → dispatches fingerprint_task → returns {asset_id, task_id}
+> - Celery task polls DB for status updates (pending → fingerprinting → protected | failed)
 > - PostgreSQL on localhost:5432; prefix pytest with DATABASE_URL="postgresql+asyncpg://guardian:changeme_dev@localhost:5432/guardian"
-> - 38/38 tests currently passing — do not regress
-> - Next: CLIP embeddings ingestion, perceptual hashing, Qdrant storage, Celery fingerprint task
+> - 54/54 tests currently passing — do not regress
+> - Next: Next.js 14 frontend — login page, asset list, asset upload form, task-status polling (GET /api/v1/tasks/{id})
