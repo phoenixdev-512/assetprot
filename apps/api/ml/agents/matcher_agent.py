@@ -6,14 +6,24 @@ from typing import Any
 import httpx
 import imagehash
 from PIL import Image
+from qdrant_client import QdrantClient
 
 from config.thresholds import CLIP_SIMILARITY_MIN, PHASH_MATCH_BITS
+from core.config import settings
 from ml.agents.state import AgentState
-from ml.fingerprinting.clip_embed import compute_clip_embedding
 from ml.fingerprinting.perceptual_hash import compute_phash
+from ml.fingerprinting.clip_embed import compute_clip_embedding
 from ml.qdrant_store import search_similar
 
 logger = logging.getLogger(__name__)
+
+
+def get_clip_model():
+    from transformers import CLIPModel, CLIPProcessor
+    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+    model.eval()
+    return model, processor
 
 
 async def fetch_image(url: str) -> Image.Image | None:
@@ -34,6 +44,9 @@ async def matcher_node(state: AgentState) -> dict[str, Any]:
     candidate_matches: list[dict] = []
     errors = state.get("errors", [])
 
+    clip_model, clip_processor = get_clip_model()
+    qdrant = QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
+
     for url in discovered_urls[:50]:
         try:
             img = await fetch_image(url)
@@ -47,13 +60,15 @@ async def matcher_node(state: AgentState) -> dict[str, Any]:
                 phash = None
 
             try:
-                embedding = compute_clip_embedding(img)
+                embedding = compute_clip_embedding(img, clip_model, clip_processor)
             except Exception as e:
                 logger.debug(f"CLIP embedding failed for {url}: {e}")
                 continue
 
             try:
-                matches = await search_similar(
+                matches = search_similar(
+                    qdrant,
+                    settings.qdrant_collection,
                     embedding,
                     score_threshold=CLIP_SIMILARITY_MIN,
                     limit=5,
