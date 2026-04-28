@@ -60,6 +60,7 @@ app.include_router(violations_router)
 app.include_router(scan_runs_router)
 app.include_router(tasks_router)
 app.include_router(dmca_router)
+app.include_router(ws_router)
 
 
 @app.get("/health")
