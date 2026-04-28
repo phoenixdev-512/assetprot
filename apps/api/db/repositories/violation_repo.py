@@ -32,6 +32,7 @@ async def get_by_id(
 
 async def create(
     db: AsyncSession,
+    org_id: uuid.UUID,
     asset_id: uuid.UUID,
     discovered_url: str,
     platform: str,
@@ -42,6 +43,7 @@ async def create(
     rights_territory_violation: bool = False,
 ) -> Violation:
     violation = Violation(
+        org_id=org_id,
         asset_id=asset_id,
         discovered_url=discovered_url,
         platform=platform,

@@ -10,6 +10,7 @@ class Violation(Base):
     __tablename__ = "violations"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     asset_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True
     )
