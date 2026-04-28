@@ -62,31 +62,62 @@ app.include_router(dmca_router)
 
 
 @app.get("/health")
-async def health():
-    db_ok = False
-    redis_ok = False
+async def health(request: Request):
+    from datetime import datetime
 
+    services = {}
+
+    # Database
     try:
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
-        db_ok = True
-    except Exception:
-        pass
+        services["database"] = {"status": "ok"}
+    except Exception as e:
+        services["database"] = {"status": "error", "message": str(e)}
 
+    # Redis
     try:
         r = redis_lib.Redis.from_url(settings.redis_url, socket_connect_timeout=1)
         r.ping()
-        redis_ok = True
-    except Exception:
-        pass
+        services["redis"] = {"status": "ok"}
+    except Exception as e:
+        services["redis"] = {"status": "error", "message": str(e)}
 
-    status_str = "ok" if (db_ok and redis_ok) else "degraded"
-    return {
-        "success": True,
-        "data": {
-            "status": status_str,
-            "db": "ok" if db_ok else "error",
-            "redis": "ok" if redis_ok else "error",
+    # Qdrant
+    try:
+        if hasattr(request.app.state, "qdrant"):
+            request.app.state.qdrant.get_collections()
+            services["qdrant"] = {"status": "ok"}
+        else:
+            services["qdrant"] = {"status": "not_initialized"}
+    except Exception as e:
+        services["qdrant"] = {"status": "error", "message": str(e)}
+
+    # ML Models
+    try:
+        if hasattr(request.app.state, "clip_model") and hasattr(request.app.state, "clip_processor"):
+            services["ml_models"] = {
+                "status": "ok",
+                "models": ["CLIP"],
+            }
+        else:
+            services["ml_models"] = {"status": "not_loaded"}
+    except Exception as e:
+        services["ml_models"] = {"status": "error", "message": str(e)}
+
+    # Overall status
+    all_ok = all(s.get("status") == "ok" for s in services.values())
+    status_str = "healthy" if all_ok else "degraded"
+
+    return JSONResponse(
+        status_code=200 if all_ok else 503,
+        content={
+            "success": True,
+            "data": {
+                "status": status_str,
+                "timestamp": datetime.utcnow().isoformat(),
+                "services": services,
+            },
+            "meta": {},
         },
-        "meta": {},
-    }
+    )
