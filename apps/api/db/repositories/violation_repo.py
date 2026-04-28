@@ -8,13 +8,26 @@ from models.violation import Violation
 
 
 async def list_by_org(
-    db: AsyncSession, org_id: uuid.UUID, offset: int = 0, limit: int = 20
+    db: AsyncSession, org_id: uuid.UUID, offset: int = 0, limit: int = 20, asset_id: uuid.UUID | None = None
 ) -> tuple[list[Violation], int]:
     base = select(Violation).join(Asset, Violation.asset_id == Asset.id).where(Asset.org_id == org_id)
+    if asset_id:
+        base = base.where(Violation.asset_id == asset_id)
     count_q = await db.execute(select(func.count()).select_from(base.subquery()))
     total = count_q.scalar_one()
     q = await db.execute(base.offset(offset).limit(limit))
     return list(q.scalars().all()), total
+
+
+async def get_by_id(
+    db: AsyncSession, violation_id: uuid.UUID, org_id: uuid.UUID
+) -> Violation | None:
+    result = await db.execute(
+        select(Violation)
+        .join(Asset, Violation.asset_id == Asset.id)
+        .where(Violation.id == violation_id, Asset.org_id == org_id)
+    )
+    return result.scalar_one_or_none()
 
 
 async def create(
