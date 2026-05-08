@@ -46,9 +46,23 @@ def _ensure_upload_dir() -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _ensure_upload_dir()
+
+    # Create database tables (ensures schema exists before seeding)
+    try:
+        from db.seed import create_tables
+        await create_tables()
+        logger.info("Database tables created/verified")
+    except Exception as e:
+        logger.error(f"Database table creation failed: {e}")
+
+    # Load ML models (optional — demo works without them)
     if settings.app_env != "test":
-        from ml.model_loader import load_models
-        load_models(app)
+        try:
+            from ml.model_loader import load_models
+            load_models(app)
+            logger.info("ML models loaded successfully")
+        except Exception as e:
+            logger.warning(f"ML models not loaded (demo will use seed data): {e}")
 
     # Auto-seed demo data if configured
     if os.getenv("SEED_DEMO_DATA", "").lower() == "true":
